@@ -5,6 +5,9 @@ import { useNavigation } from '@react-navigation/native';
 import { RootStackParamList } from '../../navigation/RootStack';
 import { COLORS } from '../../constants/colors';
 import { StackNavigationProp } from '@react-navigation/stack';
+import DeviceInfo from 'react-native-device-info';
+const version = DeviceInfo.getVersion();
+const buildNumber = DeviceInfo.getBuildNumber();
 
 const onboardingData = [
   {
@@ -36,6 +39,7 @@ const onboardingData = [
 const OnboardingScreen = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
+  console.log(version, buildNumber);
 
   const handleNext = () => {
     if (currentIndex < onboardingData.length - 1) {
