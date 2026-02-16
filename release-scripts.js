@@ -93,7 +93,7 @@ function updateVersion() {
     });
     console.log('\n✅ Android Release Build finished successfully!');
     console.log(
-      `\nArtifact path: android/app/build/outputs/apk/release/app-release.apk`,
+      `\nArtifact path: android/app/build/outputs/apk/release/FoodApp-v${newVersion}.apk`,
     );
   } catch (error) {
     console.error('\n❌ Release process failed!');

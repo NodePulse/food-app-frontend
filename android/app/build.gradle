@@ -121,6 +121,19 @@ android {
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }
     }
+
+    applicationVariants.all { variant ->
+        variant.outputs.all { output ->
+            def name = "FoodApp"
+            def versionName = variant.versionName
+            def type = variant.buildType.name
+
+            if (type == "release") {
+                outputFileName = "${name}-v${versionName}.apk"
+                // For AAB, Gradle handles it slightly differently, but this is the standard way for APKs
+            }
+        }
+    }
 }
 
 dependencies {
