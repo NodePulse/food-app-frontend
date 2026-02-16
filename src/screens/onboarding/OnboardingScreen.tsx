@@ -23,7 +23,7 @@ const onboardingData = [
     title: 'All Your Favorites in One Place',
     description:
       'Discover restaurants and dishes you love. Browse, choose, and order your favorite meals anytime.',
-    image: require('../../../assets/images/onboarding_1.png'),
+    image: require('../../../assets/images/onboarding_1.jpg'),
     bgColor: '#FFF5EF',
   },
   {
@@ -31,7 +31,7 @@ const onboardingData = [
     title: 'Order from Your Favorite Chefs',
     description:
       'Enjoy delicious meals prepared by top chefs and local kitchens, all delivered fresh to your door.',
-    image: require('../../../assets/images/onboarding_2.png'),
+    image: require('../../../assets/images/onboarding_2.jpg'),
     bgColor: '#F0F5FF',
   },
   {
@@ -39,7 +39,7 @@ const onboardingData = [
     title: 'Exciting Free Delivery Offers',
     description:
       'Save more on every order with exclusive deals, discounts, and free delivery offers.',
-    image: require('../../../assets/images/onboarding_3.png'),
+    image: require('../../../assets/images/onboarding_3.jpg'),
     bgColor: '#FFF0F0',
   },
   {
@@ -47,7 +47,7 @@ const onboardingData = [
     title: 'Fast & Reliable Delivery',
     description:
       'Get your food delivered hot and fresh in no time with our quick and reliable delivery service.',
-    image: require('../../../assets/images/onboarding_4.png'),
+    image: require('../../../assets/images/onboarding_4.jpg'),
     bgColor: '#F3FFF7',
   },
 ];
