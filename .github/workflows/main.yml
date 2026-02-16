@@ -110,16 +110,16 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Download Artifacts
         uses: actions/download-artifact@v4
         with:
           name: FoodApp-Build-${{ needs.build-android.outputs.new_version }}
-          path: ./
-
-      - name: Checkout for Changelog
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+          path: artifacts
 
       - name: Get Changelog
         id: get_changelog
@@ -145,7 +145,7 @@ jobs:
             ---
             *Automated release by FoodApp CI*
           files: |
-            *.apk
-            *.aab
+            artifacts/*.apk
+            artifacts/*.aab
         env:
           GITHUB_TOKEN: ${{ secrets.FOODAPP_GITHUB_TOKEN }}
