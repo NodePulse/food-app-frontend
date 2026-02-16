@@ -7,8 +7,10 @@ import {
   Animated,
   Dimensions,
   FlatList,
+  Modal,
 } from 'react-native';
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import versionData from '../../../version.json';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { RootStackParamList } from '../../navigation/RootStack';
@@ -61,6 +63,14 @@ const OnboardingScreen = () => {
   console.log(version, buildNumber);
   const flatListRef = useRef<FlatList>(null);
   const scrollX = useRef(new Animated.Value(0)).current;
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
+
+  useEffect(() => {
+    const deviceVersion = DeviceInfo.getVersion();
+    if (deviceVersion !== versionData.versionName) {
+      setShowUpdateModal(true);
+    }
+  }, []);
 
   const handleNext = () => {
     if (currentIndex < onboardingData.length - 1) {
@@ -215,6 +225,34 @@ const OnboardingScreen = () => {
           </TouchableOpacity>
         </View>
       </SafeAreaView>
+
+      <Modal
+        visible={showUpdateModal}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.iconContainer}>
+              <Text style={styles.infoIcon}>ℹ</Text>
+            </View>
+            <Text style={styles.modalTitle}>App Update Available</Text>
+            <Text style={styles.modalText}>
+              Your current app version ({DeviceInfo.getVersion()}) is different
+              from the latest version ({versionData.versionName}). Please update
+              your app to continue.
+            </Text>
+            <TouchableOpacity
+              activeOpacity={0.8}
+              style={styles.modalButton}
+              onPress={() => setShowUpdateModal(false)}
+            >
+              <Text style={styles.modalButtonText}>GOT IT</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -344,6 +382,71 @@ const styles = StyleSheet.create({
     color: '#646982',
     fontSize: 15,
     fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    width: '100%',
+    borderRadius: 24,
+    padding: 30,
+    alignItems: 'center',
+    // Premium Shadow
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 15 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  iconContainer: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: COLORS.default + '20',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  infoIcon: {
+    fontSize: 30,
+    color: COLORS.default,
+    fontWeight: 'bold',
+  },
+  modalTitle: {
+    fontFamily: 'Sen',
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#1E232C',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  modalText: {
+    fontFamily: 'Sen',
+    fontSize: 15,
+    color: '#646982',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  modalButton: {
+    backgroundColor: COLORS.default,
+    width: '100%',
+    height: 56,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalButtonText: {
+    fontFamily: 'Sen',
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
+    letterSpacing: 1,
   },
 });
 
