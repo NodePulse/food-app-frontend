@@ -10,7 +10,6 @@ on:
       - '.vscode/**'
       - 'docs/**'
 
-# Cancel in-progress builds for the same branch
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -26,7 +25,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Full history for changelog
+          fetch-depth: 0
+          token: ${{ secrets.FOODAPP_GITHUB_TOKEN }} # Allow pushing changes
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -65,11 +65,24 @@ jobs:
           MAPS_API_KEY=${{ secrets.MAPS_API_KEY }}
           EOF
 
-      - name: Build Release APK and Bundle
+      # CHANGED: Only update version, don't build yet
+      - name: Update Version
+        run: npm run release patch -- --skip-build
+
+      # CHANGED: Commit version changes BEFORE building
+      - name: Commit Version Update
         run: |
-          npm run release patch
-          # Also build AAB for Play Store
-          cd android && ./gradlew bundleRelease
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add package.json version.json android/app/build.gradle
+          if ! git diff --cached --exit-code; then
+            git commit -m "chore: bump version to v$(node -p "require('./version.json').versionName") [skip ci]"
+            git push
+          fi
+
+      # CHANGED: Now build after version is committed
+      - name: Build Release APK and Bundle
+        run: cd android && ./gradlew clean assembleRelease bundleRelease
 
       - name: Get Version Name
         id: get_version
@@ -77,12 +90,6 @@ jobs:
           VERSION=$(node -p "require('./version.json').versionName")
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "VERSION=$VERSION" >> $GITHUB_ENV
-
-      - name: Rename Artifacts
-        run: |
-          # The files are already named FoodApp-v*.apk/aab by Gradle
-          # We move them to a common location if needed, or just let upload use the wildcard
-          echo "Build finished for version $VERSION"
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
@@ -92,15 +99,6 @@ jobs:
             android/app/build/outputs/apk/release/*.apk
             android/app/build/outputs/bundle/release/*.aab
 
-      - name: Upload Version Data
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-metadata
-          path: |
-            package.json
-            version.json
-            android/app/build.gradle
-
   release-app:
     name: Create GitHub Release
     needs: build-android
@@ -108,35 +106,26 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
       - name: Download Artifacts
         uses: actions/download-artifact@v4
         with:
           name: FoodApp-Build-${{ needs.build-android.outputs.new_version }}
           path: ./
 
-      - name: Push Version Update
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add package.json version.json android/app/build.gradle
-          # Only commit and push if there are changes to the tracked files
-          if ! git diff --cached --exit-code; then
-            git commit -m "chore: bump version to ${{ needs.build-android.outputs.new_version }} [skip ci]"
-            git push
-          else
-            echo "No version changes to commit."
-          fi
+      - name: Checkout for Changelog
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Generate Changelog
-        id: changelog
+      - name: Get Changelog
+        id: get_changelog
         run: |
-          echo "CHANGES<<EOF" >> $GITHUB_OUTPUT
-          git log -n 10 --pretty=format:"* %s (%h)" >> $GITHUB_OUTPUT
-          echo "" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          {
+            echo "CHANGES<<EOF"
+            git log -n 10 --pretty=format:"* %s (%h)"
+            echo ""
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -147,7 +136,7 @@ jobs:
             ## 🎉 Release v${{ needs.build-android.outputs.new_version }}
 
             ### 🛠 What's Changed
-            ${{ steps.changelog.outputs.CHANGES }}
+            ${{ steps.get_changelog.outputs.CHANGES }}
 
             ---
             *Automated release by FoodApp CI*
@@ -155,4 +144,4 @@ jobs:
             *.apk
             *.aab
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.FOODAPP_GITHUB_TOKEN }}

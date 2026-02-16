@@ -11,7 +11,8 @@ const envBackupPath = path.resolve(__dirname, '.env.bak');
 
 function updateVersion() {
   const args = process.argv.slice(2);
-  const type = args[0] || 'patch'; // major, minor, patch
+  const type = args[0] || 'patch';
+  const skipBuild = args.includes('--skip-build'); // NEW: Allow skipping build
 
   if (!['major', 'minor', 'patch'].includes(type)) {
     console.error('Invalid version type. Use: major, minor, or patch');
@@ -21,23 +22,20 @@ function updateVersion() {
   let envSwapped = false;
 
   try {
-    // 1. Environment Swap Logic
-    if (fs.existsSync(envProdPath)) {
+    // 1. Environment Swap Logic (only for local builds)
+    if (!process.env.CI && fs.existsSync(envProdPath)) {
       console.log('🔄 Swapping .env with .env.production for release...');
       if (fs.existsSync(envPath)) {
         fs.copyFileSync(envPath, envBackupPath);
       }
       fs.copyFileSync(envProdPath, envPath);
       envSwapped = true;
-    } else {
-      console.warn('⚠️  .env.production not found. Using existing .env file.');
     }
 
     // 2. Read version.json
     const versionData = JSON.parse(fs.readFileSync(versionJsonPath, 'utf8'));
     const oldVersion = versionData.versionName;
     const oldCode = versionData.versionCode;
-
     console.log(
       `Bumping ${type} version from ${oldVersion} (code: ${oldCode})...`,
     );
@@ -74,7 +72,7 @@ function updateVersion() {
     if (fs.existsSync(buildGradlePath)) {
       let content = fs.readFileSync(buildGradlePath, 'utf8');
       content = content.replace(
-        /versionName\s+\".*\"/,
+        /versionName\s+".*"/,
         `versionName "${newVersion}"`,
       );
       content = content.replace(/versionCode\s+\d+/, `versionCode ${newCode}`);
@@ -84,17 +82,21 @@ function updateVersion() {
 
     console.log('\n✅ Versioning updated successfully!');
 
-    // 7. Run Android Build
-    console.log('\n🚀 Starting Android Release Build...');
-    const androidDir = path.resolve(__dirname, 'android');
-    execSync('./gradlew clean assembleRelease', {
-      cwd: androidDir,
-      stdio: 'inherit',
-    });
-    console.log('\n✅ Android Release Build finished successfully!');
-    console.log(
-      `\nArtifact path: android/app/build/outputs/apk/release/FoodApp-v${newVersion}.apk`,
-    );
+    // 7. Run Android Build (skip in CI, workflow handles it)
+    if (!skipBuild && !process.env.CI) {
+      console.log('\n🚀 Starting Android Release Build...');
+      const androidDir = path.resolve(__dirname, 'android');
+      execSync('./gradlew clean assembleRelease', {
+        cwd: androidDir,
+        stdio: 'inherit',
+      });
+      console.log('\n✅ Android Release Build finished successfully!');
+      console.log(
+        `\nArtifact path: android/app/build/outputs/apk/release/FoodApp-v${newVersion}.apk`,
+      );
+    } else {
+      console.log('\n⏭️  Skipping build (will be handled separately)');
+    }
   } catch (error) {
     console.error('\n❌ Release process failed!');
     console.error(error.message);
@@ -107,7 +109,6 @@ function updateVersion() {
         fs.copyFileSync(envBackupPath, envPath);
         fs.unlinkSync(envBackupPath);
       } else {
-        // If there was no backup, it means .env didn't exist originally
         fs.unlinkSync(envPath);
       }
     }
