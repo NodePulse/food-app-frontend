@@ -114,7 +114,8 @@ jobs:
       - name: Download Artifacts
         uses: actions/download-artifact@v4
         with:
-          merge-multiple: true
+          name: FoodApp-Build-${{ needs.build-android.outputs.new_version }}
+          path: ./
 
       - name: Push Version Update
         run: |
