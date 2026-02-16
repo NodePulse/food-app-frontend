@@ -79,6 +79,7 @@ yarn-error.log
 
 # Keystore
 android/app/*.keystore
+!android/app/debug.keystore
 android/app/*.jks
 android/app/keystore.properties
 
