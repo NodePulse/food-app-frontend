@@ -11,6 +11,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # Required for pushing version bumps and creating releases
 
     steps:
       - name: Checkout code
