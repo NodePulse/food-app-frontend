@@ -1,4 +1,14 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# FoodApp
+
+A premium food discovery and delivery application built with React Native.
+
+## 📥 Download App
+
+You can download the latest version of the Android app directly from the link below:
+
+👉 **[Download latest APK](https://github.com/NodePulse/food-app-frontend/releases)**
+
+---
 
 # Getting Started
 

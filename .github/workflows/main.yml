@@ -1,0 +1,81 @@
+name: Android Release Build
+
+on:
+  push:
+    branches:
+      - main # Run this only when pushing to main to avoid useless builds
+    paths-ignore:
+      - 'README.md'
+      - '.gitignore'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'zulu'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Setup Production Environment
+        # This creates the .env.production file from a GitHub Secret
+        run: echo "BASE_URL=${{ secrets.PROD_API_URL }}" > .env.production
+
+      - name: Setup Android Keystore
+        # This decodes your keystore file from a base64 string stored in secrets
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > android/app/my-release-key.keystore
+
+      - name: Create keystore.properties
+        # This prepares the properties file for the build.gradle to read
+        run: |
+          echo "KEYSTORE_FILE=my-release-key.keystore" > android/app/keystore.properties
+          echo "KEYSTORE_PASSWORD=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" >> android/app/keystore.properties
+          echo "KEY_ALIAS=${{ secrets.ANDROID_KEY_ALIAS }}" >> android/app/keystore.properties
+          echo "KEY_PASSWORD=${{ secrets.ANDROID_KEY_PASSWORD }}" >> android/app/keystore.properties
+          echo "MAPS_API_KEY=${{ secrets.MAPS_API_KEY }}" >> android/app/keystore.properties
+
+      - name: Run Build Script (Version Bump + Build)
+        run: |
+          npm run release patch
+          # Capture the new version for later steps
+          VERSION=$(node -p "require('./version.json').versionName")
+          echo "NEW_VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Push Version Update
+        # This pushes the package.json and version.json updates back to main
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add package.json version.json android/app/build.gradle
+          git commit -m "chore: bump version to ${{ env.NEW_VERSION }} [skip ci]"
+          git push
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.NEW_VERSION }}
+          name: Release ${{ env.NEW_VERSION }}
+          files: android/app/build/outputs/apk/release/app-release.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release
+          path: android/app/build/outputs/apk/release/app-release.apk
