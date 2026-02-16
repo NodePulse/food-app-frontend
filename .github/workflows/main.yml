@@ -91,13 +91,17 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 
+      - name: Prepare Artifacts
+        run: |
+          mkdir dist
+          cp android/app/build/outputs/apk/release/*.apk dist/
+          cp android/app/build/outputs/bundle/release/*.aab dist/
+
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: FoodApp-Build-${{ steps.get_version.outputs.version }}
-          path: |
-            android/app/build/outputs/apk/release/*.apk
-            android/app/build/outputs/bundle/release/*.aab
+          path: dist/
 
   release-app:
     name: Create GitHub Release
