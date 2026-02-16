@@ -3,24 +3,39 @@ name: Android Release Build
 on:
   push:
     branches:
-      - main # Run this only when pushing to main to avoid useless builds
+      - main
     paths-ignore:
       - 'README.md'
       - '.gitignore'
+      - '.vscode/**'
+      - 'docs/**'
+
+# Cancel in-progress builds for the same branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build:
+  build-android:
+    name: Build Android
     runs-on: ubuntu-latest
-
+    timeout-minutes: 60
+    outputs:
+      new_version: ${{ steps.get_version.outputs.version }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Full history for changelog
 
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'zulu'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -29,53 +44,109 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
-      - name: Setup Production Environment
-        # This creates the .env.production file from a GitHub Secret
-        run: echo "BASE_URL=${{ secrets.PROD_API_URL }}" > .env.production
+      - name: Setup Environment
+        run: |
+          echo "BASE_URL=${{ secrets.PROD_API_URL }}" > .env.production
+          echo "GOOGLE_MAPS_API_KEY=${{ secrets.MAPS_API_KEY }}" >> .env.production
 
       - name: Setup Android Keystore
-        # This decodes your keystore file from a base64 string stored in secrets
         run: |
           echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > android/app/my-release-key.keystore
 
       - name: Create keystore.properties
-        # This prepares the properties file for the build.gradle to read
         run: |
-          echo "KEYSTORE_FILE=my-release-key.keystore" > android/app/keystore.properties
-          echo "KEYSTORE_PASSWORD=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" >> android/app/keystore.properties
-          echo "KEY_ALIAS=${{ secrets.ANDROID_KEY_ALIAS }}" >> android/app/keystore.properties
-          echo "KEY_PASSWORD=${{ secrets.ANDROID_KEY_PASSWORD }}" >> android/app/keystore.properties
-          echo "MAPS_API_KEY=${{ secrets.MAPS_API_KEY }}" >> android/app/keystore.properties
+          cat <<EOF > android/app/keystore.properties
+          KEYSTORE_FILE=my-release-key.keystore
+          KEYSTORE_PASSWORD=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS=${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD=${{ secrets.ANDROID_KEY_PASSWORD }}
+          MAPS_API_KEY=${{ secrets.MAPS_API_KEY }}
+          EOF
 
-      - name: Run Build Script (Version Bump + Build)
+      - name: Build Release APK and Bundle
         run: |
           npm run release patch
-          # Capture the new version for later steps
+          # Also build AAB for Play Store
+          cd android && ./gradlew bundleRelease
+
+      - name: Get Version Name
+        id: get_version
+        run: |
           VERSION=$(node -p "require('./version.json').versionName")
-          echo "NEW_VERSION=$VERSION" >> $GITHUB_ENV
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Rename Artifacts
+        run: |
+          # The files are already named FoodApp-v*.apk/aab by Gradle
+          # We move them to a common location if needed, or just let upload use the wildcard
+          echo "Build finished for version $VERSION"
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: FoodApp-Build-${{ steps.get_version.outputs.version }}
+          path: |
+            android/app/build/outputs/apk/release/*.apk
+            android/app/build/outputs/bundle/release/*.aab
+
+      - name: Upload Version Data
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-metadata
+          path: |
+            package.json
+            version.json
+            android/app/build.gradle
+
+  release-app:
+    name: Create GitHub Release
+    needs: build-android
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
 
       - name: Push Version Update
-        # This pushes the package.json and version.json updates back to main
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add package.json version.json android/app/build.gradle
-          git commit -m "chore: bump version to ${{ env.NEW_VERSION }} [skip ci]"
+          git commit -m "chore: bump version to ${{ needs.build-android.outputs.new_version }} [skip ci]"
           git push
+
+      - name: Generate Changelog
+        id: changelog
+        run: |
+          echo "CHANGES<<EOF" >> $GITHUB_OUTPUT
+          git log -n 10 --pretty=format:"* %s (%h)" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ env.NEW_VERSION }}
-          name: Release ${{ env.NEW_VERSION }}
-          files: android/app/build/outputs/apk/release/app-release.apk
+          tag_name: v${{ needs.build-android.outputs.new_version }}
+          name: Release v${{ needs.build-android.outputs.new_version }}
+          body: |
+            ## 🎉 Release v${{ needs.build-android.outputs.new_version }}
+
+            ### 🛠 What's Changed
+            ${{ steps.changelog.outputs.CHANGES }}
+
+            ---
+            *Automated release by FoodApp CI*
+          files: |
+            *.apk
+            *.aab
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload Release APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-release
-          path: android/app/build/outputs/apk/release/app-release.apk

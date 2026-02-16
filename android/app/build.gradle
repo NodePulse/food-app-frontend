@@ -88,8 +88,8 @@ android {
         applicationId "com.foodapp"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 2
-        versionName "1.0.1"
+        versionCode 4
+        versionName "1.0.3"
 
         manifestPlaceholders = [mapsApiKey: keystoreProperties.getProperty("MAPS_API_KEY") ?: ""]
     }
@@ -119,6 +119,19 @@ android {
             signingConfig signingConfigs.debug
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
+        }
+    }
+
+    applicationVariants.all { variant ->
+        variant.outputs.all { output ->
+            def name = "FoodApp"
+            def versionName = variant.versionName
+            def type = variant.buildType.name
+
+            if (type == "release") {
+                outputFileName = "${name}-v${versionName}.apk"
+                // For AAB, Gradle handles it slightly differently, but this is the standard way for APKs
+            }
         }
     }
 }
